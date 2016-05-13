@@ -1,0 +1,6 @@
+.*.swp
+.*.swo
+pkg
+mosquitto.log
+src/github.com/
+src/golang.org/
