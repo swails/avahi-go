@@ -45,10 +45,12 @@ func NetworkHasAmazonDevice(timeout time.Duration) (bool, error) {
 
 	results := make(chan *bonjour.ServiceEntry)
 
+	stopChan := make(chan struct{})
 	// Send the "stop browsing" signal after the desired timeout
 	go func() {
 		time.Sleep(timeout)
-		resolver.Exit <- true
+		go func() { resolver.Exit <- true }()
+		go func() { stopChan <- struct{}{} }()
 	}()
 
 	err = resolver.Browse(echoService, echoDomain, results)
@@ -57,20 +59,26 @@ func NetworkHasAmazonDevice(timeout time.Duration) (bool, error) {
 		return false, fmt.Errorf("could not browse DNS services: %v", err)
 	}
 
-	for e := range results {
-		macAddress := macFinder.FindString(e.Instance)
-		if macAddress == "" {
-			continue
-		}
-		resp, err := http.Get(macLookupHost + macAddress)
-		if err != nil || resp.StatusCode != 200 {
-			continue
-		}
-		body, err := ioutil.ReadAll(resp.Body)
+forLoop:
+	for {
+		select {
+		case e := <-results:
+			macAddress := macFinder.FindString(e.Instance)
+			if macAddress == "" {
+				continue
+			}
+			resp, err := http.Get(macLookupHost + macAddress)
+			if err != nil || resp.StatusCode != 200 {
+				continue
+			}
+			body, err := ioutil.ReadAll(resp.Body)
 
-		manufacturer := strings.Trim(strings.ToUpper(string(body)), "\t\n\r ")
-		if strings.HasPrefix(manufacturer, "AMAZON") {
-			return true, nil
+			manufacturer := strings.Trim(strings.ToUpper(string(body)), "\t\n\r ")
+			if strings.HasPrefix(manufacturer, "AMAZON") {
+				return true, nil
+			}
+		case <-stopChan:
+			break forLoop
 		}
 	}
 
