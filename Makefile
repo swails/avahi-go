@@ -11,6 +11,5 @@ build: deps
 #install: build
 # 	/bin/mv mqtt_stresser $(PREFIX)/bin
 
-#test: deps
-#	/bin/rm -f broker/mosquitto.log
-#	./run_all_tests.sh
+test: deps
+	./run_all_tests.sh
